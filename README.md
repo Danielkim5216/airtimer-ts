@@ -2,6 +2,8 @@
 
 공군 기수별 복무 현황, 계급 진급 정보, 디데이, 24시간제 **국방시계**를 볼 수 있습니다.
 
+https://danielkim5216.github.io/airtimer-ts/
+
 ## Tech Stack
 
 * **Core**: HTML5, TypeScript

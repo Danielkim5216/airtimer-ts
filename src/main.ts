@@ -1,5 +1,7 @@
 import './style.css';
 
+console.log("🚀 ROKAF Clock Main script loaded.");
+
 interface Cohort {
   cohortNumber: number;
   enlistmentDate: Date;
@@ -15,7 +17,7 @@ type Rank = '민간인' | '훈련병' | '이등병' | '일병' | '상병' | '병
 
 // Constant Variables & Cohort Specific Date Overrides
 const START_COHORT = 862;
-const END_COHORT = 880;
+const END_COHORT = 881;
 const REF_COHORT = 879; // 879기 is recruit as of June 2026
 const REF_DATE = new Date(2026, 5, 1); // 2026-06-01 (Month is 0-indexed, so 5 is June)
 
@@ -42,13 +44,14 @@ const COHORT_DATE_OVERRIDES: { [cohort: number]: { enlist: string; discharge?: s
   '878': { enlist: '2026-04-20', discharge: '2028-01-19' },
   '879': { enlist: '2026-05-18', discharge: '2028-02-17' },
   '880': { enlist: '2026-06-22', discharge: '2028-03-21' },
+  '881' : { enlist: '2026-07-13',},
   // 필요 시 아래 형식으로 입대/전역 날짜를 추가하여 개별 변경.
   // 878: { enlist: '2026-05-04', discharge: '2028-02-03' },
 };
 
 // 5초마다 보여줄 공지사항 목록
 const NOTICES = [
-  "최초 업데이트가 완료되었습니다. (862기~880기)",
+  "기수별 상세 정보를 확인할 수 있는 모달창이 추가되었습니다.",
   "개발자는 869기 입니다. 869기 화이팅!",
   "Gemini 3.5 Flash의 테스트 도중 만들어봤습니다.",
 ];
@@ -302,15 +305,130 @@ appEl.innerHTML = `
   </footer>
 `;
 
+console.log("✅ DOM structural elements injected successfully.");
+
 const tbody = document.getElementById('cohort-table-body')!;
 const oldestCard = document.getElementById('card-oldest')!;
 const recruitCard = document.getElementById('card-recruit')!;
 const globalClockEl = document.getElementById('global-clock')!;
 
+// =============================
+// Detail Modal DOM refs & events
+// =============================
+let selectedCohort: Cohort | null = null;
+
+// Inject modal HTML directly into body (outside #app to avoid layout issues)
+const modalHTML = `
+  <div class="detail-overlay" id="detail-overlay">
+    <div class="detail-panel" id="detail-panel">
+      <button class="detail-panel-close" id="detail-close-btn" aria-label="닫기">✕</button>
+      <div class="detail-hero">
+        <div class="detail-hero-top">
+          <div class="detail-cohort-number" id="d-cohort-number">000<span>기</span></div>
+          <span class="rank-badge detail-rank-badge" id="d-rank-badge">계급</span>
+        </div>
+        <div class="detail-dates">
+          <div class="detail-date-item">
+            <span class="detail-date-label">입대일</span>
+            <span class="detail-date-value" id="d-enlist-date">-</span>
+          </div>
+          <div class="detail-date-item">
+            <span class="detail-date-label">전역일</span>
+            <span class="detail-date-value" id="d-discharge-date">-</span>
+          </div>
+          <div class="detail-date-item">
+            <span class="detail-date-label">복무기간</span>
+            <span class="detail-date-value" id="d-duration">-</span>
+          </div>
+        </div>
+      </div>
+      <div class="detail-bars">
+        <div class="detail-bar-group">
+          <div class="detail-bar-header">
+            <span class="detail-bar-label">전체 복무율</span>
+            <span class="detail-bar-pct" id="d-total-pct">0.00000%</span>
+          </div>
+          <div class="detail-bar-track">
+            <div class="detail-bar-fill detail-bar-fill-total" id="d-total-bar" style="width:0%"></div>
+          </div>
+          <div class="detail-bar-sub">
+            <span id="d-total-bar-start">입대일</span>
+            <span id="d-total-bar-end">전역일</span>
+          </div>
+        </div>
+        <div class="detail-bar-group">
+          <div class="detail-bar-header">
+            <span class="detail-bar-label" id="d-rank-bar-label">계급 복무율</span>
+            <span class="detail-bar-pct" id="d-rank-pct">0.00000%</span>
+          </div>
+          <div class="detail-bar-track">
+            <div class="detail-bar-fill detail-bar-fill-rank" id="d-rank-bar" style="width:0%"></div>
+          </div>
+          <div class="detail-bar-sub">
+            <span id="d-rank-bar-start">시작</span>
+            <span id="d-rank-bar-end">종료</span>
+          </div>
+        </div>
+      </div>
+      <div class="detail-stats">
+        <div class="detail-stat-card">
+          <span class="detail-stat-label">국방 시계</span>
+          <span class="detail-stat-value" id="d-clock">00:00:00</span>
+          <span class="detail-stat-sub">Military Time</span>
+        </div>
+        <div class="detail-stat-card">
+          <span class="detail-stat-label">전역 D-day</span>
+          <span class="detail-stat-value" id="d-discharge-dday">-</span>
+          <span class="detail-stat-sub">Discharge</span>
+        </div>
+        <div class="detail-stat-card">
+          <span class="detail-stat-label">진급 D-day</span>
+          <span class="detail-stat-value" id="d-nextrank-dday">-</span>
+          <span class="detail-stat-sub" id="d-nextrank-label">Next Rank</span>
+        </div>
+        <div class="detail-stat-card">
+          <span class="detail-stat-label">훈련병 수료</span>
+          <span class="detail-stat-value" id="d-recruit-end">-</span>
+          <span class="detail-stat-sub">Recruit End</span>
+        </div>
+        <div class="detail-stat-card">
+          <span class="detail-stat-label">이등병 → 일병</span>
+          <span class="detail-stat-value" id="d-private-end">-</span>
+          <span class="detail-stat-sub">3개월차</span>
+        </div>
+        <div class="detail-stat-card">
+          <span class="detail-stat-label">일병 → 상병</span>
+          <span class="detail-stat-value" id="d-pfc-end">-</span>
+          <span class="detail-stat-sub">9개월차</span>
+        </div>
+      </div>
+      <div class="detail-timeline">
+        <div class="detail-timeline-title">계급 타임라인</div>
+        <div class="timeline-track" id="d-timeline-track"></div>
+        <div class="timeline-labels" id="d-timeline-labels"></div>
+      </div>
+    </div>
+  </div>
+`;
+document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+const detailOverlay = document.getElementById('detail-overlay')!;
+const detailCloseBtn = document.getElementById('detail-close-btn')!;
+
+detailOverlay.addEventListener('click', (e) => {
+  if (e.target === detailOverlay) closeDetailModal();
+});
+detailCloseBtn.addEventListener('click', closeDetailModal);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeDetailModal();
+});
+
 // Build initial rows of table (to avoid re-rendering layout and keep transition smooth)
 cohorts.forEach(cohort => {
   const tr = document.createElement('tr');
   tr.id = `row-${cohort.cohortNumber}`;
+  tr.classList.add('clickable-row');
+  tr.title = `${cohort.cohortNumber}기 상세 보기`;
   
   tr.innerHTML = `
     <td><span class="cohort-badge">${cohort.cohortNumber}기</span></td>
@@ -353,6 +471,9 @@ cohorts.forEach(cohort => {
   `;
   
   tbody.appendChild(tr);
+
+  // Click: open detail modal
+  tr.addEventListener('click', () => openDetailModal(cohort));
 });
 
 // Real-time loop
@@ -450,6 +571,11 @@ function tick() {
   // 3. Update Highlight Cards (862기 최선임, 879기 훈련병)
   updateHighlightCard(oldestCard, createCohort(START_COHORT), now, '최선임 복무 현황', 'card-highest');
   updateHighlightCard(recruitCard, createCohort(REF_COHORT), now, '훈련병 복무 현황', 'card-lowest');
+
+  // 4. Update detail modal if open
+  if (selectedCohort !== null) {
+    updateDetailModal(selectedCohort, now);
+  }
 }
 
 function getRankColorVar(rank: Rank): string {
@@ -514,6 +640,138 @@ function updateHighlightCard(cardEl: HTMLElement, cohort: Cohort, now: Date, lab
 // Start loop
 setInterval(tick, 50);
 tick();
+
+// =============================
+// Detail Modal Logic
+// =============================
+function openDetailModal(cohort: Cohort) {
+  selectedCohort = cohort;
+  detailOverlay.classList.add('visible');
+  document.body.style.overflow = 'hidden';
+  updateDetailModal(cohort, new Date());
+}
+
+function closeDetailModal() {
+  selectedCohort = null;
+  detailOverlay.classList.remove('visible');
+  document.body.style.overflow = '';
+}
+
+function updateDetailModal(cohort: Cohort, now: Date) {
+  const rankInfo = getRankAndTimeline(cohort, now);
+  const totalPct = calculateTotalPercentage(cohort, now);
+  const rankPct = calculateRankPercentage(cohort, now);
+  const ddays = getDdays(cohort, now);
+  const mClock = getMilitaryClock(totalPct);
+  const rankColorVar = getRankColorVar(rankInfo.rank);
+
+  // Hero
+  const dCohortNum = document.getElementById('d-cohort-number')!;
+  dCohortNum.innerHTML = `${cohort.cohortNumber}<span>기</span>`;
+
+  const dRankBadge = document.getElementById('d-rank-badge')!;
+  dRankBadge.className = `rank-badge detail-rank-badge ${getRankBadgeClass(rankInfo.rank)}`;
+  dRankBadge.textContent = rankInfo.rank;
+
+  (document.getElementById('d-enlist-date')!).textContent = formatDate(cohort.enlistmentDate);
+  (document.getElementById('d-discharge-date')!).textContent = formatDate(cohort.dischargeDate);
+
+  // Calculate total duration in months
+  const totalDays = Math.round((cohort.dischargeDate.getTime() - cohort.enlistmentDate.getTime()) / (1000 * 60 * 60 * 24));
+  const months = Math.floor(totalDays / 30);
+  const days = totalDays % 30;
+  (document.getElementById('d-duration')!).textContent = `약 ${months}개월 ${days}일`;
+
+  // Total bar
+  // 모달창 복무율 퍼센트 소수점 10자리까지 보여주기 (totalPct.toFixed로 변경 가능)
+  const totalBarEl = document.getElementById('d-total-bar')! as HTMLDivElement;
+  totalBarEl.style.width = `${totalPct}%`;
+  (document.getElementById('d-total-pct')!).textContent = `${totalPct.toFixed(10)}%`;
+  (document.getElementById('d-total-bar-start')!).textContent = formatDate(cohort.enlistmentDate);
+  (document.getElementById('d-total-bar-end')!).textContent = formatDate(cohort.dischargeDate);
+
+  // Rank bar
+  const rankBarEl = document.getElementById('d-rank-bar')! as HTMLDivElement;
+  const rankPctEl = document.getElementById('d-rank-pct')!;
+  const rankBarLabelEl = document.getElementById('d-rank-bar-label')!;
+  const rankBarStartEl = document.getElementById('d-rank-bar-start')!;
+  const rankBarEndEl = document.getElementById('d-rank-bar-end')!;
+
+  rankBarLabelEl.textContent = `${rankInfo.rank} 계급 복무율`;
+
+  if (rankInfo.rank === '민간인') {
+    rankBarEl.style.width = '0%';
+    rankPctEl.textContent = '-';
+    rankBarStartEl.textContent = '미입대';
+    rankBarEndEl.textContent = formatDate(cohort.enlistmentDate);
+    rankBarEl.style.background = `var(--civ-color)`;
+    rankBarEl.style.boxShadow = 'none';
+  } else if (rankInfo.rank === '예비역') {
+    rankBarEl.style.width = '100%';
+    rankPctEl.textContent = '100.00000000%';
+    rankBarStartEl.textContent = formatDate(cohort.dischargeDate);
+    rankBarEndEl.textContent = '전역 완료';
+    rankBarEl.style.background = `var(--dis-color)`;
+    rankBarEl.style.boxShadow = `0 0 12px rgba(236,72,153,0.3)`;
+  } else {
+    rankBarEl.style.width = `${rankPct}%`;
+    rankPctEl.textContent = `${rankPct.toFixed(8)}%`;
+    rankBarStartEl.textContent = rankInfo.start ? formatDate(rankInfo.start) : '-';
+    rankBarEndEl.textContent = rankInfo.end ? formatDate(rankInfo.end) : '-';
+    rankBarEl.style.background = `var(--${rankColorVar})`;
+    rankBarEl.style.boxShadow = `0 0 12px rgba(0,0,0,0.3)`;
+  }
+
+  // Stats
+  (document.getElementById('d-clock')!).textContent = mClock;
+  (document.getElementById('d-discharge-dday')!).textContent = ddays.dischargeDday;
+  const nextDdayEl = document.getElementById('d-nextrank-dday')!;
+  nextDdayEl.textContent = ddays.nextRankDday;
+  (document.getElementById('d-nextrank-label')!).textContent = `→ ${rankInfo.nextRank}`;
+
+  (document.getElementById('d-recruit-end')!).textContent = formatDate(cohort.pRecruitEnd);
+  (document.getElementById('d-private-end')!).textContent = formatDate(cohort.pPrivateEnd);
+  (document.getElementById('d-pfc-end')!).textContent = formatDate(cohort.pPfcEnd);
+
+  // Timeline track
+  const totalMs = cohort.dischargeDate.getTime() - cohort.enlistmentDate.getTime();
+  const segments = [
+    { label: '훈련병', end: cohort.pRecruitEnd, color: `var(--rec-color)` },
+    { label: '이등병', end: cohort.pPrivateEnd, color: `var(--pvt-color)` },
+    { label: '일병', end: cohort.pPfcEnd, color: `var(--pfc-color)` },
+    { label: '상병', end: cohort.pCplEnd, color: `var(--cpl-color)` },
+    { label: '병장', end: cohort.dischargeDate, color: `var(--sgt-color)` },
+  ];
+
+  const trackEl = document.getElementById('d-timeline-track')!;
+  const labelsEl = document.getElementById('d-timeline-labels')!;
+  trackEl.innerHTML = '';
+  labelsEl.innerHTML = '';
+
+  let prevMs = cohort.enlistmentDate.getTime();
+  segments.forEach((seg, i) => {
+    const segMs = seg.end.getTime() - prevMs;
+    const segPct = (segMs / totalMs) * 100;
+    const isActive = rankInfo.rank === seg.label;
+    const isPast = cohort.enlistmentDate.getTime() > 0 &&
+      now.getTime() > seg.end.getTime();
+
+    const div = document.createElement('div');
+    div.className = 'timeline-segment';
+    div.style.flex = `${segPct}`;
+    div.style.background = (isPast || isActive) ? seg.color : 'rgba(255,255,255,0.06)';
+    div.style.opacity = isActive ? '1' : (isPast ? '0.55' : '0.25');
+    if (i > 0) div.style.borderLeft = '1px solid rgba(0,0,0,0.3)';
+    trackEl.appendChild(div);
+
+    const labelDiv = document.createElement('div');
+    labelDiv.className = 'timeline-label-item';
+    labelDiv.innerHTML = `<span class="timeline-label-rank" style="color: ${isActive ? seg.color : 'var(--text-muted)'}; ${isActive ? 'font-size:0.75rem;' : ''}">${seg.label}</span><span>${segPct.toFixed(0)}%</span>`;
+    labelsEl.appendChild(labelDiv);
+
+    prevMs = seg.end.getTime();
+  });
+}
 
 // 공지사항 회전 루프 (5초 간격)
 let currentNoticeIndex = 0;
