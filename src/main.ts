@@ -17,7 +17,7 @@ type Rank = '민간인' | '훈련병' | '이등병' | '일병' | '상병' | '병
 
 // Constant Variables & Cohort Specific Date Overrides
 const START_COHORT = 862;
-const END_COHORT = 880;
+const END_COHORT = 881;
 const REF_COHORT = 879; // 879기 is recruit as of June 2026
 const REF_DATE = new Date(2026, 5, 1); // 2026-06-01 (Month is 0-indexed, so 5 is June)
 
@@ -44,13 +44,14 @@ const COHORT_DATE_OVERRIDES: { [cohort: number]: { enlist: string; discharge?: s
   '878': { enlist: '2026-04-20', discharge: '2028-01-19' },
   '879': { enlist: '2026-05-18', discharge: '2028-02-17' },
   '880': { enlist: '2026-06-22', discharge: '2028-03-21' },
+  '881' : { enlist: '2026-07-13',},
   // 필요 시 아래 형식으로 입대/전역 날짜를 추가하여 개별 변경.
   // 878: { enlist: '2026-05-04', discharge: '2028-02-03' },
 };
 
 // 5초마다 보여줄 공지사항 목록
 const NOTICES = [
-  "최초 업데이트가 완료되었습니다. (862기~880기)",
+  "기수별 상세 정보를 확인할 수 있는 모달창이 추가되었습니다.",
   "개발자는 869기 입니다. 869기 화이팅!",
   "Gemini 3.5 Flash의 테스트 도중 만들어봤습니다.",
 ];
@@ -682,9 +683,10 @@ function updateDetailModal(cohort: Cohort, now: Date) {
   (document.getElementById('d-duration')!).textContent = `약 ${months}개월 ${days}일`;
 
   // Total bar
+  // 모달창 복무율 퍼센트 소수점 10자리까지 보여주기 (totalPct.toFixed로 변경 가능)
   const totalBarEl = document.getElementById('d-total-bar')! as HTMLDivElement;
   totalBarEl.style.width = `${totalPct}%`;
-  (document.getElementById('d-total-pct')!).textContent = `${totalPct.toFixed(5)}%`;
+  (document.getElementById('d-total-pct')!).textContent = `${totalPct.toFixed(10)}%`;
   (document.getElementById('d-total-bar-start')!).textContent = formatDate(cohort.enlistmentDate);
   (document.getElementById('d-total-bar-end')!).textContent = formatDate(cohort.dischargeDate);
 
@@ -706,14 +708,14 @@ function updateDetailModal(cohort: Cohort, now: Date) {
     rankBarEl.style.boxShadow = 'none';
   } else if (rankInfo.rank === '예비역') {
     rankBarEl.style.width = '100%';
-    rankPctEl.textContent = '100.00000%';
+    rankPctEl.textContent = '100.00000000%';
     rankBarStartEl.textContent = formatDate(cohort.dischargeDate);
     rankBarEndEl.textContent = '전역 완료';
     rankBarEl.style.background = `var(--dis-color)`;
     rankBarEl.style.boxShadow = `0 0 12px rgba(236,72,153,0.3)`;
   } else {
     rankBarEl.style.width = `${rankPct}%`;
-    rankPctEl.textContent = `${rankPct.toFixed(5)}%`;
+    rankPctEl.textContent = `${rankPct.toFixed(8)}%`;
     rankBarStartEl.textContent = rankInfo.start ? formatDate(rankInfo.start) : '-';
     rankBarEndEl.textContent = rankInfo.end ? formatDate(rankInfo.end) : '-';
     rankBarEl.style.background = `var(--${rankColorVar})`;
