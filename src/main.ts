@@ -16,16 +16,15 @@ interface Cohort {
 type Rank = '민간인' | '훈련병' | '이등병' | '일병' | '상병' | '병장' | '예비역';
 
 // Constant Variables & Cohort Specific Date Overrides
-const START_COHORT = 863;
-const END_COHORT = 881;
-const REF_COHORT = 879; // 879기 is recruit as of June 2026
+const START_COHORT = 864;
+const END_COHORT = 882;
+const REF_COHORT = 882; // 879기 is recruit as of June 2026
 const REF_DATE = new Date(2026, 5, 1); // 2026-06-01 (Month is 0-indexed, so 5 is June)
 
 // 각 기수의 실제 입대일과 전역일을 개별 지정하려면 아래 객체에 추가/수정.
 // 날짜 포맷은 'YYYY-MM-DD' 형식입니다. 전역일(discharge)은 적지 않으면 입대일로부터 21개월 후로 자동 계산됩니다
 // 최근부터 입대일이 일정하지 않으니 수동으로 넣는걸 추천.
 const COHORT_DATE_OVERRIDES: { [cohort: number]: { enlist: string; discharge?: string } } = {
-  '863': { enlist: '2024-11-18', discharge: '2026-08-17' },
   '864': { enlist: '2024-12-23', discharge: '2026-09-22' },
   '865': { enlist: '2025-02-03', discharge: '2026-11-02' },
   '866': { enlist: '2025-03-10', discharge: '2026-12-09' },
@@ -43,14 +42,15 @@ const COHORT_DATE_OVERRIDES: { [cohort: number]: { enlist: string; discharge?: s
   '878': { enlist: '2026-04-20', discharge: '2028-01-19' },
   '879': { enlist: '2026-05-18', discharge: '2028-02-17' },
   '880': { enlist: '2026-06-22', discharge: '2028-03-21' } ,
-  '881' : { enlist: '2026-07-13',},
+  '881' : { enlist: '2026-07-27',discharge: '2028-04-26'},
+  '882' : { enlist: '2026-08-31',discharge: '2028-05-30'},
   // 필요 시 아래 형식으로 입대/전역 날짜를 추가하여 개별 변경.
   // 878: { enlist: '2026-05-04', discharge: '2028-02-03' },
 };
 
 // 5초마다 보여줄 공지사항 목록
 const NOTICES = [
-  "병장 월급을 받고 싶다...(병장 D-34)",
+  "대 869기 병장진급",
   "개발자는 869기 입니다. 869기 화이팅!",
   "Gemini 3.5 Flash의 테스트 도중 만들어봤습니다.",
 ];
